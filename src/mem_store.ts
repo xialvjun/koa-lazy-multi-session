@@ -1,7 +1,8 @@
-'use strict';
 
 class MemStore {
-  constructor(gc_interval=1000*60*60) {
+  sessions: Map<string | number, { expire_at: number, sess: any }>
+
+  constructor(gc_interval = 1000 * 60 * 60) {
     this.sessions = new Map();
     setInterval(() => {
       let now = Date.now();
@@ -12,21 +13,23 @@ class MemStore {
       });
     }, gc_interval);
   }
-  get(sid) {
+  
+  get(sid: string | number) {
     let session = this.sessions.get(sid);
     if (session && Date.now() < session.expire_at) {
       return Promise.resolve(session.sess);
     }
     return Promise.resolve(null);
   }
-  set(sid, sess, max_age) {
-    this.sessions.set(sid, {sess, expire_at: Date.now() + Math.max(max_age, 0)});
-    return Promise.resolve();
+
+  set(sid: string | number, sess, max_age: number) {
+    return Promise.resolve(this.sessions.set(sid, { sess, expire_at: Date.now() + Math.max(max_age, 0) }));
   }
-  destroy(sid) {
+
+  destroy(sid: string | number) {
     return Promise.resolve(this.sessions.delete(sid));
   }
 }
 
 
-module.exports = MemStore;
+export default MemStore;
