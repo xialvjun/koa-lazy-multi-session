@@ -1,0 +1,21 @@
+{
+  "name": "koa-lazy-multi-session",
+  "version": "0.0.1",
+  "description": "A lazy koa session and you can get multi session in one request.",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "koa",
+    "lazy",
+    "multi",
+    "session"
+  ],
+  "author": "xialvjun@live.com",
+  "license": "MIT",
+  "dependencies": {
+    "@types/debug": "^0.0.29",
+    "@types/koa": "^2.0.39"
+  }
+}
