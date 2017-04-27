@@ -8,29 +8,40 @@ import * as Koa from 'koa';
 import MemStore from './mem_store';
 
 export interface Store {
-    get: (string) => Promise<any>,
-    set: (string, any, number) => Promise<any>,
-    destroy: (string) => Promise<any>,
+    get: (sid: string) => Promise<any>,
+    set: (sid: string, sess: any, max_age: number) => Promise<any>,
+    destroy: (sid: string) => Promise<any>,
+    touch?: (sid: string, max_age: number) => Promise<any>,
 }
 
 export interface Options {
-    get_sid?: string | { type: string, name: string } | ((ctx: Koa.Context) => string),
+    get_sid?: string | null | ((ctx: Koa.Context) => string),
     max_age?: number,
+    eager?: boolean,
+    rollup?: boolean,
     store?: Store,
 }
 
 interface FormatedOptions {
     get_sid: object | ((ctx: Koa.Context) => string),
     max_age: number,
+    eager: boolean,
+    rollup: boolean,
     store: Store,
 }
 
-function lazy_multi_session(opts: Options) {
-    const { get_sid, max_age, store } = format_opts(opts);
+interface Session {
+    old_session: any,
+    new_session: any,
+    loaded: boolean,
+}
+
+export function lazy_multi_session(opts: Options) {
+    const { get_sid, max_age, store, eager, rollup } = format_opts(opts);
     return middleware;
 
     async function middleware(ctx: Koa.Context, next: () => Promise<any>) {
-        const sessions = new Map();
+        const sessions = new Map<string, Session>();
 
         Object(ctx).session = async (sid, key, value) => {
             if (typeof get_sid === 'function') {
@@ -54,7 +65,7 @@ function lazy_multi_session(opts: Options) {
                     // Merge sid in it to easily get sid
                     return Object.assign({ sid }, session.old_session, session.new_session);
                 }
-                // old_session 取出来是不带 sid 的
+                // old_session doesn't have sid, expire_at, created_at, updated_up
                 session.old_session = await store.get(sid);
                 session.loaded = true;
                 return Object.assign({ sid }, session.old_session);
@@ -63,15 +74,27 @@ function lazy_multi_session(opts: Options) {
             return session.new_session[key] = value;
         }
 
+        if (eager) {
+            await Object(ctx).session();
+        }
+
         await next();
 
         let promises = [];
         sessions.forEach((session, sid) => promises.push(save_session(session, sid)));
         return Promise.all(promises);
 
-        async function save_session(session, sid) {
+        async function save_session(session: Session, sid: string) {
             // If new_session hasn't changed, we do nothing
             if (Object.keys(session.new_session).length === 0) {
+                if (rollup) {
+                    if (typeof store.touch === 'function') {
+                        return store.touch(sid, max_age);
+                    } else {
+                        let { sid: final_sid, ...sess } = await Object(ctx).session(sid);
+                        return store.set(sid, sess, max_age);
+                    }
+                }
                 return;
             }
 
@@ -88,43 +111,44 @@ function lazy_multi_session(opts: Options) {
 }
 
 function format_opts(opts: Options): FormatedOptions {
-    let get_sid, max_age, store;
+    let get_sid, max_age, eager, rollup, store;
 
     if (opts.get_sid === undefined) {
         get_sid = (ctx: Koa.Context) => ctx.cookies.get('sid');
     } else if (typeof opts.get_sid === 'string') {
         let copy_get_sid = opts.get_sid;
         get_sid = (ctx: Koa.Context) => ctx.cookies.get(copy_get_sid);
-    } else if (typeof opts.get_sid === 'object') {
-        if (opts.get_sid === null) {
-            // If get_sid === null, we take it as programmers want to offer different sid to get multiple session in one request.
-            get_sid === null;
-        } else {
-            assert(['cookie', 'jwt'].indexOf(opts.get_sid.type) > -1, `Unsupported get_sid.type! We can only support ['cookie', 'jwt'] type temporarily.`);
-            if (opts.get_sid.type === 'cookie') {
-                assert(
-                    typeof opts.get_sid.name === 'string' &&
-                    opts.get_sid.name.length > 0
-                    ,
-                    `Cookie type's get_sid.name must be a not empty string!`
-                );
-                let copy_name = opts.get_sid.name;
-                get_sid = (ctx: Koa.Context) => ctx.cookies.get(copy_name);
-            } else if (opts.get_sid.type === 'jwt') {
-                assert(
-                    typeof opts.get_sid.name === 'string' &&
-                    opts.get_sid.name.length > 0
-                    ,
-                    `Jwt type's get_sid.name must be a not empty string!`
-                );
-                let copy_name = opts.get_sid.name;
-                get_sid = (ctx: Koa.Context) => Object(ctx).jwt[copy_name];
-            }
-        }
+    } else if (opts.get_sid === null) {
+        // if (opts.get_sid === null) {
+        //     // If get_sid === null, we take it as programmers want to offer sid to ctx.session function. So we can offer different sid to get multiple session in one request.
+        //     get_sid === null;
+        // } else {
+        //     assert(
+        //         typeof opts.get_sid.type === 'string' &&
+        //         opts.get_sid.type.length > 0
+        //         ,
+        //         `Opts.get_sid.type must be a not empty string!`
+        //     );
+        //     assert(
+        //         typeof opts.get_sid.name === 'string' &&
+        //         opts.get_sid.name.length > 0
+        //         ,
+        //         `Opts.get_sid.name must be a not empty string!`
+        //     );
+        //     if (opts.get_sid.type === 'cookie' || opts.get_sid.type === 'cookies') {
+        //         let copy_name = opts.get_sid.name;
+        //         get_sid = (ctx: Koa.Context) => ctx.cookies.get(copy_name);
+        //     } else {
+        //         let copy_type = opts.get_sid.type;
+        //         let copy_name = opts.get_sid.name;
+        //         get_sid = (ctx: Koa.Context) => Object(ctx)[copy_type][copy_name];
+        //     }
+        // }
+        get_sid = null;
     } else if (typeof opts.get_sid === 'function') {
         get_sid = opts.get_sid;
     } else {
-        assert(false, `Unsupported get_sid! We can only support 'undefined', 'string', 'object' and 'function'.`);
+        assert(false, `Unsupported get_sid! We can only support 'undefined', 'string', 'null' and 'function'.`);
     }
 
     if (opts.max_age === undefined) {
@@ -138,6 +162,20 @@ function format_opts(opts: Options): FormatedOptions {
             `Opts.max_age must be an positive integer!`
         );
         max_age = opts.max_age;
+    }
+
+    if (opts.eager === undefined) {
+        eager = false;
+    } else {
+        assert(typeof opts.eager === 'boolean', `Opts.eager must be a boolean!`);
+        eager = opts.eager;
+    }
+
+    if (opts.rollup === undefined) {
+        rollup = false;
+    } else {
+        assert(typeof opts.rollup === 'boolean', `Opts.rollup must be a boolean!`);
+        rollup = opts.rollup;
     }
 
     if (opts.store === undefined) {
@@ -154,7 +192,7 @@ function format_opts(opts: Options): FormatedOptions {
         store = opts.store;
     }
 
-    const formated_opts = { get_sid, max_age, store };
+    const formated_opts = { get_sid, max_age, eager, rollup, store };
     debug('The formated session options: %j', formated_opts);
     return formated_opts;
 }

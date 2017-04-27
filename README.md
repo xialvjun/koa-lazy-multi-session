@@ -1,45 +1,105 @@
 # koa-lazy-multi-session
+
 A lazy koa session and you can get multi session in one request.
 
+### Why this
 
-### There are many ways to implement session.
+First, **LAZY**. We already have the json_web_token. If we only need the information which the jwt already stored, we needn't to load the whole session from database.
 
-- We can store the session data in the client: just simple cookie session or secure jwt session.
-- We can store the session data in the server and tell the session_id to the client. And the client can store the session_id in the cookie or the jwt header.
+Second, **MULTI**. Well, in normal case, we don't need it. But it take the possibility of use different account to get different data in just one request. And it just agree with the practice in graphql of sending token as the parameter of a field's resolve function, in different fields' resolve function, you may send different token.
 
+### Usage
 
-##### Pure client session:
-  * Pros:
-    1. Simple
-    2. Save up the database query
-  * Cons:
-    1. Cannot store too much data
-    2. Consume too much bandwidth
+### Installation
 
-##### Server session:
-  * Pros:
-    1. Secure
-    2. Can save a lot of data
-    3. Can implement the function: kick off some other client
-  * Cons:
-    1. Consume database query
+`npm install --save koa-lazy-multi-session`
 
-##### Cookie session:
-  * Pros:
-    1. Simple
-  * Cons:
-    1. Not secure, can be auto sended by the browser which may easily lead to a CSRF attack
+### Example
 
-##### Jwt session:
-  * Pros:
-    1. Secure
-  * Cons:
-    1. None
+**example one**
+```ts
+import lazy from 'koa-lazy-multi-session';
 
+const opts = {
+    get_sid: 'sid',
+    max_age: 24 * 60 * 60 * 1000,
+    eager: false,
+    rollup: false,
+    // The default store is an in-memory Map. You may want to use a database store like my `knex-schema-session-store`
+    // store: Store,
+};
 
-They make 4 session implementing ways: **pure client cookie session, pure client jwt session, server session with sid in cookie, server session with sid in jwt header**.
+app.use(lazy(opts));
 
+app.use(async function(ctx, next) {
+    let sess = await ctx.session();
+    console.log(sess);
+    await ctx.session('foo', 'bar');
+    sess = await ctx.session();
+    console.log(sess);
+});
+```
 
-### Best Practice
+**example two**
+```ts
+const opts = {
+    // if get_sid is null, it become multi session
+    get_sid: null
+};
 
-So I think in normal web application, the best practice of session is `server session with sid in jwt header`, and **the `jwt header` can also store some data which will never be changed like `user_id`**.
+app.use(lazy(opts));
+
+app.use(async function(ctx, next) {
+    // ... some ways to get an sid;
+    let sid = ...;
+    let sess = await ctx.session(sid);
+    console.log(sess);
+    await ctx.session(sid, 'foo', 'bar');
+    sess = await ctx.session();
+    console.log(sess);
+
+    let another_sid = ...;
+    let another_sess = await ctx.session(another_sid);
+    console.log(another_sess);
+    await ctx.session(another_sid, 'foo', 'bar');
+    another_sess = await ctx.session();
+    console.log(another_sess);
+});
+```
+
+### API
+
+`export default function lazy_multi_session(opts: Options): (ctx: Koa.Context, next: () => Promise<any>) => Promise<any[]>;`
+
+#### Options
+
+```ts
+export interface Options {
+    // see Tip 2
+    get_sid?: string | null | ((ctx: Koa.Context) => string);
+    // how long will a session be remembered (in milliseconds, default: 1000 * 60 * 60 * 24, aka one day)
+    max_age?: number;
+    // is it eager to load the session? (default: false)
+    eager?: boolean;
+    // will we update the session even it didn't be changed to keep it alive? (default: false)
+    rollup?: boolean;
+    // see the bottom
+    store?: Store;
+}
+```
+
+> Tip 1: `rollup` has nothing to do with `eager`. If we set `eager=false; rollup=true`, then even a request come, if we didn't access its session, we won't update it.
+
+> Tip 2: `get_sid` can be undefined, string, null and a function returning string. If it's undefined, it's `'sid'`; if it's a string, it's `(ctx) => ctx.cookies.get(get_sid)`, so undefined is `(ctx) => ctx.cookies.get('sid')`; if it's a function, the function should derive the sid from the Koa.Context. The complex part is when `get_sid` is `null`: if `get_sid` is `null`, this package works in `multi-session` mode, you need to tell which sid session you want to get. Just see the difference between the above two examples.
+
+#### Store
+
+```ts
+// any object implement this interface or without touch function.
+export interface Store {
+    get: (sid: string) => Promise<any>;
+    set: (sid: string, sess: any, max_age: number) => Promise<any>;
+    destroy: (sid: string) => Promise<any>;
+    touch?: (sid: string, max_age: number) => Promise<any>;
+}
+```
