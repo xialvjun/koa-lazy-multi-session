@@ -87,7 +87,9 @@ export function lazy_multi_session(opts: Options) {
         async function save_session(session: Session, sid: string) {
             // If new_session hasn't changed, we do nothing
             if (Object.keys(session.new_session).length === 0) {
-                if (rollup) {
+                // We must assure the old_session does exist.
+                // If the old_session doesn't exist and the new_session hasn't changed, then if we rollup it, we may bring an expired session to not expired.
+                if (rollup && session.loaded && session.old_session) {
                     if (typeof store.touch === 'function') {
                         return store.touch(sid, max_age);
                     } else {
@@ -119,31 +121,6 @@ function format_opts(opts: Options): FormatedOptions {
         let copy_get_sid = opts.get_sid;
         get_sid = (ctx: Koa.Context) => ctx.cookies.get(copy_get_sid);
     } else if (opts.get_sid === null) {
-        // if (opts.get_sid === null) {
-        //     // If get_sid === null, we take it as programmers want to offer sid to ctx.session function. So we can offer different sid to get multiple session in one request.
-        //     get_sid === null;
-        // } else {
-        //     assert(
-        //         typeof opts.get_sid.type === 'string' &&
-        //         opts.get_sid.type.length > 0
-        //         ,
-        //         `Opts.get_sid.type must be a not empty string!`
-        //     );
-        //     assert(
-        //         typeof opts.get_sid.name === 'string' &&
-        //         opts.get_sid.name.length > 0
-        //         ,
-        //         `Opts.get_sid.name must be a not empty string!`
-        //     );
-        //     if (opts.get_sid.type === 'cookie' || opts.get_sid.type === 'cookies') {
-        //         let copy_name = opts.get_sid.name;
-        //         get_sid = (ctx: Koa.Context) => ctx.cookies.get(copy_name);
-        //     } else {
-        //         let copy_type = opts.get_sid.type;
-        //         let copy_name = opts.get_sid.name;
-        //         get_sid = (ctx: Koa.Context) => Object(ctx)[copy_type][copy_name];
-        //     }
-        // }
         get_sid = null;
     } else if (typeof opts.get_sid === 'function') {
         get_sid = opts.get_sid;
