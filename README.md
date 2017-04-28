@@ -4,11 +4,13 @@ A lazy koa session and you can get multi session in one request.
 
 ### Why this
 
-First, **LAZY**. We already have the json_web_token. If we only need the information which the jwt already stored, we needn't to load the whole session from database.
+First, **LAZY**. We already have the signed cookies or json_web_token. If we only need the information which the signed cookies or the jwt already stored, we needn't to load the whole session from database.
 
 Second, **MULTI**. Well, in normal case, we don't need it. But it take the possibility of use different account to get different data in just one request. And it just agree with the practice in graphql of sending token as the parameter of a field's resolve function, in different fields' resolve function, you may send different token.
 
 ### Usage
+
+This package doesn't take responsility for sending the authentication to the client, which means it doesn't set the cookies. You need to set the cookie yourself when the client logged in if you use cookie to store the authentication.
 
 ### Installation
 
