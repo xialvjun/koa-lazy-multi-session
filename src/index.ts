@@ -44,6 +44,17 @@ export function lazy_multi_session(opts: Options) {
         const sessions = new Map<string, Session>();
 
         Object(ctx).session = async (sid, key, value) => {
+            // if value!==undefined, it must be set-session. And in common case, it is to init the session
+            if (value !== undefined) {
+                let session = sessions.get(sid);
+                if (!session) {
+                    // don't set loaded to true because programmers may give a duplicated sid, then they should be notified(get the old_session from the store) when they get the session
+                    session = { old_session: undefined, new_session: {}, loaded: false };
+                    sessions.set(sid, session);
+                }
+                return session.new_session[key] = value;
+            }
+
             if (typeof get_sid === 'function') {
                 value = key;
                 key = sid;
@@ -68,7 +79,7 @@ export function lazy_multi_session(opts: Options) {
                 // old_session doesn't have sid, expire_at, created_at, updated_up
                 session.old_session = await store.get(sid);
                 session.loaded = true;
-                return Object.assign({ sid }, session.old_session);
+                return Object.assign({ sid }, session.old_session, session.new_session);
             }
             // If `key!==undefined`, it means `set the session`. If `value===undefined`, it means to delete the key
             return session.new_session[key] = value;
