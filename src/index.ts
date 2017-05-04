@@ -71,7 +71,11 @@ export function lazy_multi_session(opts: Options) {
                 return Object.assign({ sid }, session.old_session, session.new_session);
             }
             // If `key!==undefined`, it means `set the session`. If `value===undefined`, it means to delete the key
-            return session.new_session[key] = value;
+            if (typeof key === 'object') {
+                Object.assign(session.new_session, key);
+            } else {
+                session.new_session[key] = value;
+            }
         }
 
         if (eager) {

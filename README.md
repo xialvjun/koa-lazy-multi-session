@@ -42,8 +42,10 @@ app.use(async function(ctx, next) {
     } else {
         let sid = uuid();
         // init session must be 'sid'
-        await ctx.session('sid', sid);
-        await ctx.session('foo', 'bar');
+        // await ctx.session('sid', sid);
+        // await ctx.session('foo', 'bar');
+        // or
+        await ctx.session({ sid, foo: 'bar' });
         // you need to tell the client what the sid is. This package doesn't take responsibility of setting the cookie or something.
         ctx.body = sid;
     }
