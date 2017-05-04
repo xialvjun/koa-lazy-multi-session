@@ -36,7 +36,17 @@ app.use(lazy(opts));
 app.use(async function(ctx, next) {
     let sess = await ctx.session();
     console.log(sess);
-    await ctx.session('foo', 'bar');
+    if (sess) {
+        // set session
+        await ctx.session('foo', 'bar');
+    } else {
+        let sid = uuid();
+        // init session must be 'sid'
+        await ctx.session('sid', sid);
+        await ctx.session('foo', 'bar');
+        // you need to tell the client what the sid is. This package doesn't take responsibility of setting the cookie or something.
+        ctx.body = sid;
+    }
     sess = await ctx.session();
     console.log(sess);
 });

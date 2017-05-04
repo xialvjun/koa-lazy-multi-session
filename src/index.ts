@@ -44,25 +44,10 @@ export function lazy_multi_session(opts: Options) {
         const sessions = new Map<string, Session>();
 
         Object(ctx).session = async (sid, key, value) => {
-            // if value!==undefined, it must be set-session. And in common case, it is to init the session
-            if (value !== undefined) {
-                let session = sessions.get(sid);
-                if (!session) {
-                    // don't set loaded to true because programmers may give a duplicated sid, then they should be notified(get the old_session from the store) when they get the session
-                    session = { old_session: undefined, new_session: {}, loaded: false };
-                    sessions.set(sid, session);
-                }
-                return session.new_session[key] = value;
-            }
-
             if (typeof get_sid === 'function') {
                 value = key;
                 key = sid;
                 sid = get_sid(ctx);
-            }
-
-            if (!sid) {
-                return null;
             }
 
             let session = sessions.get(sid);
@@ -75,6 +60,10 @@ export function lazy_multi_session(opts: Options) {
                 if (session && session.loaded) {
                     // Merge sid in it to easily get sid
                     return Object.assign({ sid }, session.old_session, session.new_session);
+                }
+                if (!sid && Object.keys(session.new_session).length===0) {
+                    // if ctx doesn't have a sid and new_session hasn't been changed, we need to tell programmers there is no session
+                    return null;
                 }
                 // old_session doesn't have sid, expire_at, created_at, updated_up
                 session.old_session = await store.get(sid);
@@ -111,7 +100,11 @@ export function lazy_multi_session(opts: Options) {
                 return;
             }
 
-            let { sid: final_sid, ...sess } = await Object(ctx).session(sid);
+            if (sid && !session.loaded) {
+                session.old_session = await store.get(sid);
+            }
+            let final_session = Object.assign({ sid }, session.old_session, session.new_session);
+            let { sid: final_sid, ...sess } = final_session;
 
             if (sid && sid !== final_sid) {
                 await store.destroy(sid);
