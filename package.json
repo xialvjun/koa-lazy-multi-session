@@ -1,6 +1,6 @@
 {
   "name": "koa-lazy-multi-session",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "A lazy koa session and you can get multi session in one request.",
   "main": "lib/index.js",
   "directories": {
