@@ -99,6 +99,8 @@ export interface Options {
     rollup?: boolean;
     // see the bottom
     store?: Store;
+    // will we ignore the save_session_error to avoid confusing our users? (default: true)
+    ignore_save_session_error;
 }
 ```
 

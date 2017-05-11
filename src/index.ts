@@ -20,6 +20,7 @@ export interface Options {
     eager?: boolean,
     rollup?: boolean,
     store?: Store,
+    ignore_save_session_error?: boolean,
 }
 
 interface FormatedOptions {
@@ -28,6 +29,7 @@ interface FormatedOptions {
     eager: boolean,
     rollup: boolean,
     store: Store,
+    ignore_save_session_error: boolean,
 }
 
 interface Session {
@@ -37,7 +39,7 @@ interface Session {
 }
 
 export function lazy_multi_session(opts: Options) {
-    const { get_sid, max_age, store, eager, rollup } = format_opts(opts);
+    const { get_sid, max_age, eager, rollup, store, ignore_save_session_error } = format_opts(opts);
     return middleware;
 
     async function middleware(ctx: Koa.Context, next: () => Promise<any>) {
@@ -86,7 +88,16 @@ export function lazy_multi_session(opts: Options) {
 
         let promises = [];
         sessions.forEach((session, sid) => promises.push(save_session(session, sid)));
-        return Promise.all(promises);
+
+        if (ignore_save_session_error) {
+            try {
+                await Promise.all(promises);
+            } catch (error) {
+            }
+        } else {
+            await Promise.all(promises);
+        }
+        return;
 
         async function save_session(session: Session, sid: string) {
             // If new_session hasn't changed, we do nothing
@@ -121,7 +132,7 @@ export function lazy_multi_session(opts: Options) {
 }
 
 function format_opts(opts: Options): FormatedOptions {
-    let get_sid, max_age, eager, rollup, store;
+    let get_sid, max_age, eager, rollup, store, ignore_save_session_error;
 
     if (opts.get_sid === undefined) {
         get_sid = (ctx: Koa.Context) => ctx.cookies.get('sid');
@@ -177,7 +188,14 @@ function format_opts(opts: Options): FormatedOptions {
         store = opts.store;
     }
 
-    const formated_opts = { get_sid, max_age, eager, rollup, store };
+    if (opts.ignore_save_session_error === undefined) {
+        ignore_save_session_error = true;
+    } else {
+        assert(typeof opts.ignore_save_session_error === 'boolean', `Opts.ignore_save_session_error must be a boolean!`);
+        ignore_save_session_error = opts.ignore_save_session_error;
+    }
+
+    const formated_opts = { get_sid, max_age, eager, rollup, store, ignore_save_session_error };
     debug('The formated session options: %j', formated_opts);
     return formated_opts;
 }
