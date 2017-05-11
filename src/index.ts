@@ -59,17 +59,16 @@ export function lazy_multi_session(opts: Options) {
             }
 
             if (key === undefined) {
+                if (!sid && Object.keys(session.new_session).length === 0) {
+                    // if ctx doesn't have a sid and new_session hasn't been changed, we need to tell programmers there is no session
+                    return null;
+                }
                 if (session && session.loaded) {
                     // Merge sid in it to easily get sid
                     // Ensure no_session and out_dated_session all return null
-                    let final_session = Object.assign({ sid }, session.old_session, session.new_session);
-                    if (Object.keys(final_session).length===1) {
-                        return null;
+                    if (session.old_session || Object.keys(session.new_session).length > 0) {
+                        return Object.assign({ sid }, session.old_session, session.new_session);
                     }
-                    return final_session;
-                }
-                if (!sid && Object.keys(session.new_session).length===0) {
-                    // if ctx doesn't have a sid and new_session hasn't been changed, we need to tell programmers there is no session
                     return null;
                 }
                 // old_session doesn't have sid, expire_at, created_at, updated_up
@@ -77,11 +76,10 @@ export function lazy_multi_session(opts: Options) {
                 session.loaded = true;
 
                 // Ensure no_session and out_dated_session all return null
-                let final_session = Object.assign({ sid }, session.old_session, session.new_session);
-                if (Object.keys(final_session).length===1) {
-                    return null;
+                if (session.old_session || Object.keys(session.new_session).length > 0) {
+                    return Object.assign({ sid }, session.old_session, session.new_session);
                 }
-                return final_session;
+                return null;
             }
             // If `key!==undefined`, it means `set the session`. If `value===undefined`, it means to delete the key
             if (typeof key === 'object') {
@@ -119,7 +117,7 @@ export function lazy_multi_session(opts: Options) {
                     if (typeof store.touch === 'function') {
                         return store.touch(sid, max_age);
                     } else {
-                        let { sid: final_sid, ...sess } = await Object(ctx).session(sid);
+                        let sess = await store.get(sid);
                         return store.set(sid, sess, max_age);
                     }
                 }
@@ -176,6 +174,9 @@ function format_opts(opts: Options): FormatedOptions {
     } else {
         assert(typeof opts.eager === 'boolean', `Opts.eager must be a boolean!`);
         eager = opts.eager;
+    }
+    if (eager) {
+        assert(get_sid !== null, `If opts.eager===true, then opts.get_sid mustn't be null!`);
     }
 
     if (opts.rollup === undefined) {
