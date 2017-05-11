@@ -61,7 +61,12 @@ export function lazy_multi_session(opts: Options) {
             if (key === undefined) {
                 if (session && session.loaded) {
                     // Merge sid in it to easily get sid
-                    return Object.assign({ sid }, session.old_session, session.new_session);
+                    // Ensure no_session and out_dated_session all return null
+                    let final_session = Object.assign({ sid }, session.old_session, session.new_session);
+                    if (Object.keys(final_session).length===1) {
+                        return null;
+                    }
+                    return final_session;
                 }
                 if (!sid && Object.keys(session.new_session).length===0) {
                     // if ctx doesn't have a sid and new_session hasn't been changed, we need to tell programmers there is no session
@@ -70,7 +75,13 @@ export function lazy_multi_session(opts: Options) {
                 // old_session doesn't have sid, expire_at, created_at, updated_up
                 session.old_session = await store.get(sid);
                 session.loaded = true;
-                return Object.assign({ sid }, session.old_session, session.new_session);
+
+                // Ensure no_session and out_dated_session all return null
+                let final_session = Object.assign({ sid }, session.old_session, session.new_session);
+                if (Object.keys(final_session).length===1) {
+                    return null;
+                }
+                return final_session;
             }
             // If `key!==undefined`, it means `set the session`. If `value===undefined`, it means to delete the key
             if (typeof key === 'object') {
