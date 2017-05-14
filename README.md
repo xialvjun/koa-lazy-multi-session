@@ -26,7 +26,7 @@ const opts = {
     get_sid: 'sid',
     max_age: 24 * 60 * 60 * 1000,
     eager: false,
-    rollup: false,
+    rolling: false,
     // The default store is an in-memory Map. You may want to use a database store like my `knex-schema-session-store`
     // store: Store,
 };
@@ -96,7 +96,7 @@ export interface Options {
     // is it eager to load the session? (default: false)
     eager?: boolean;
     // will we update the session even it didn't be changed to keep it alive? (default: false)
-    rollup?: boolean;
+    rolling?: boolean;
     // see the bottom
     store?: Store;
     // will we ignore the save_session_error to avoid confusing our users? (default: true)
@@ -104,7 +104,7 @@ export interface Options {
 }
 ```
 
-> Tip 1: `rollup` has nothing to do with `eager`. If we set `eager=false; rollup=true`, then even a request come, if we didn't access its session, we won't update it.
+> Tip 1: `rolling` has nothing to do with `eager`. If we set `eager=false; rolling=true`, then even a request come, if we didn't access its session, we won't update it.
 
 > Tip 2: `get_sid` can be undefined, string, null and a function returning string. If it's undefined, it's `'sid'`; if it's a string, it's `(ctx) => ctx.cookies.get(get_sid)`, so undefined is `(ctx) => ctx.cookies.get('sid')`; if it's a function, the function should derive the sid from the Koa.Context. The complex part is when `get_sid` is `null`: if `get_sid` is `null`, this package works in `multi-session` mode, you need to tell which sid session you want to get. Just see the difference between the above two examples.
 

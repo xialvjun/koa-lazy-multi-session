@@ -18,7 +18,9 @@ export interface Options {
     get_sid?: string | null | ((ctx: Koa.Context) => string),
     max_age?: number,
     eager?: boolean,
+    // deprecated, use rolling
     rollup?: boolean,
+    rolling?: boolean,
     store?: Store,
     ignore_save_session_error?: boolean,
 }
@@ -27,7 +29,7 @@ interface FormatedOptions {
     get_sid: object | ((ctx: Koa.Context) => string),
     max_age: number,
     eager: boolean,
-    rollup: boolean,
+    rolling: boolean,
     store: Store,
     ignore_save_session_error: boolean,
 }
@@ -39,7 +41,7 @@ interface Session {
 }
 
 export function lazy_multi_session(opts: Options) {
-    const { get_sid, max_age, eager, rollup, store, ignore_save_session_error } = format_opts(opts);
+    const { get_sid, max_age, eager, rolling, store, ignore_save_session_error } = format_opts(opts);
     return middleware;
 
     async function middleware(ctx: Koa.Context, next: () => Promise<any>) {
@@ -112,8 +114,8 @@ export function lazy_multi_session(opts: Options) {
             // If new_session hasn't changed, we do nothing
             if (Object.keys(session.new_session).length === 0) {
                 // We must assure the old_session does exist.
-                // If the old_session doesn't exist and the new_session hasn't changed, then if we rollup it, we may bring an expired session to not expired.
-                if (rollup && session.loaded && session.old_session) {
+                // If the old_session doesn't exist and the new_session hasn't changed, then if we rolling it, we may bring an expired session to not expired.
+                if (rolling && session.loaded && session.old_session) {
                     if (typeof store.touch === 'function') {
                         return store.touch(sid, max_age);
                     } else {
@@ -141,7 +143,7 @@ export function lazy_multi_session(opts: Options) {
 }
 
 function format_opts(opts: Options): FormatedOptions {
-    let get_sid, max_age, eager, rollup, store, ignore_save_session_error;
+    let get_sid, max_age, eager, rolling, store, ignore_save_session_error;
 
     if (opts.get_sid === undefined) {
         get_sid = (ctx: Koa.Context) => ctx.cookies.get('sid');
@@ -179,12 +181,19 @@ function format_opts(opts: Options): FormatedOptions {
         assert(get_sid !== null, `If opts.eager===true, then opts.get_sid mustn't be null!`);
     }
 
-    if (opts.rollup === undefined) {
-        rollup = false;
+    if (opts.rolling === undefined) {
+        if (opts.rollup === undefined) {
+            rolling = false;
+        } else {
+            debug('Warn: opts.rollup is deprecated, use opts.rolling.');
+            assert(typeof opts.rollup === 'boolean', `Opts.rollup must be a boolean!`);
+            rolling = opts.rollup;
+        }
     } else {
-        assert(typeof opts.rollup === 'boolean', `Opts.rollup must be a boolean!`);
-        rollup = opts.rollup;
+        assert(typeof opts.rolling === 'boolean', `Opts.rolling must be a boolean!`);
+        rolling = opts.rolling;
     }
+
 
     if (opts.store === undefined) {
         store = new MemStore();
@@ -207,7 +216,7 @@ function format_opts(opts: Options): FormatedOptions {
         ignore_save_session_error = opts.ignore_save_session_error;
     }
 
-    const formated_opts = { get_sid, max_age, eager, rollup, store, ignore_save_session_error };
+    const formated_opts = { get_sid, max_age, eager, rolling, store, ignore_save_session_error };
     debug('The formated session options: %j', formated_opts);
     return formated_opts;
 }
