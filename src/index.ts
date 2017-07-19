@@ -18,7 +18,9 @@ export interface Options {
     get_sid?: string | null | ((ctx: Koa.Context) => string),
     max_age?: number,
     eager?: boolean,
-    // deprecated, use rolling
+    /**
+     * @deprecated use rolling
+     */
     rollup?: boolean,
     rolling?: boolean,
     store?: Store,
@@ -26,6 +28,9 @@ export interface Options {
 }
 
 interface FormatedOptions {
+    /**
+     * get_sid can only be one of [null, (ctx) => string]
+     */
     get_sid: object | ((ctx: Koa.Context) => string),
     max_age: number,
     eager: boolean,
